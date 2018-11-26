@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="UTF-8">
+		<title>netty</title>
+		<link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css" />
+	</head>
+
+	<body>
+		<div class="container">
+			<div id="chatroomBox" style="display: none;">
+				<div id="sendBox">
+					<div class="form-group">
+						<label for="message">请输入消息</label>
+						<textarea class="form-control" rows="3" id="message"></textarea>
+					</div>
+					<div class="form-group">
+						<label for="target">请选择发送目标</label>
+						<select class="form-control" id="target"></select>
+						<br />
+						<button class="btn btn-primary" id="queueBtn">私聊</button>
+						<button class="btn btn-info" id="topicBtn">群聊</button>
+					</div>
+					<div class="form-group">
+						<label for="messages">消息记录</label>
+						<textarea class="form-control" rows="10" id="messages" readonly="readonly"></textarea>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="js/jquery-2.1.0.js" type="text/javascript" charset="utf-8"></script>
+		<script src="bootstrap/js/bootstrap.min.js" type="text/javascript" charset="utf-8"></script>
+		<script type="text/javascript">
+			$(function() {
+				//判断当前浏览器是否支持WebSocket
+				if(!window.WebSocket) {
+					window.WebSocket = window.MozWebSocket;
+				}
+				if(!window.WebSocket) {
+					alter("当前浏览器不支持WebSocket");
+					return;
+				}
+
+				//创建WebSocket对象
+				var webSocket = new WebSocket("ws://localhost:8081/webSocket");
+
+				//连接成功调用方法
+				webSocket.onopen = function(e) {
+					console.log("onopen");
+					//显示聊天室
+					$("#chatroomBox").css("display", "block");
+					//获取所有channel id
+					sendMessage(3);
+				};
+
+				//浏览器收到服务器消息调用方法
+				webSocket.onmessage = function(e) {
+					console.log("onmessage");
+					var response = JSON.parse(e.data);
+					var message = response.message;
+					if(response.code == 1000) {
+						if(response.type == 4) { //服务器主动推送消息
+							//清空
+							$("#target").html("");
+							//加载
+							for(var i = 0; i < message.length; i++) {
+								$("#target").append($('<option>' + message[i] + '</option>'));
+							}
+						} else { //群聊消息或私聊消息
+							$("#messages").val($("#messages").val() + "\n" + message);
+						}
+					}
+				};
+
+				//出现错误调用方法
+				webSocket.onerror = function(e) {
+					alert(e.type);
+				};
+
+				//连接关闭调用方法
+				webSocket.onclose = function(e) {
+					alert(e.type);
+				};
+
+				//点击群聊按钮
+				$("#topicBtn").click(function() {
+					sendMessage(1);
+				});
+
+				//点击私聊按钮
+				$("#queueBtn").click(function() {
+					//判断目标
+					var $target = $("#target").val().trim();
+					sendMessage(2, $target);
+				});
+
+				//发送消息方法
+				function sendMessage(type, target) {
+					if(webSocket.readyState == WebSocket.OPEN) {
+						var request = {
+							type: type,
+							message: $('#message').val().trim(),
+							target: target
+						};
+						webSocket.send(JSON.stringify(request));
+						$('#message').val("");
+					}
+				}
+
+				//监听窗口关闭
+				window.onbeforeunload = function() {
+					webSocket.close();
+				};
+			});
+		</script>
+	</body>
+
+</html>

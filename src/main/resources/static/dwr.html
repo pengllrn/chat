@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<meta charset="UTF-8">
+		<title>dwr</title>
+		<link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css" />
+	</head>
+
+	<body>
+		<div class="container">
+			<button class="btn btn-success" id="connectBtn">建立连接</button>
+			<div id="chatroomBox" style="display: none;">
+				<div id="sendBox">
+					<div class="form-group">
+						<label for="message">请输入消息</label>
+						<textarea class="form-control" rows="3" id="message"></textarea>
+					</div>
+					<div class="form-group">
+						<label for="target">请选择发送目标</label>
+						<select class="form-control" id="target"></select>
+						<br />
+						<button class="btn btn-primary" id="queueBtn">私聊</button>
+						<button class="btn btn-info" id="topicBtn">群聊</button>
+					</div>
+					<div class="form-group">
+						<label for="messages">消息记录</label>
+						<textarea class="form-control" rows="10" id="messages" readonly="readonly"></textarea>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script type='text/javascript' src='/chat/dwr/util.js'></script>
+		<script type='text/javascript' src='/chat/dwr/engine.js'></script>
+		<script type='text/javascript' src='/chat/dwr/interface/DWRController.js'></script>
+		<script type="text/javascript" src="js/jquery-2.1.0.js"></script>
+		<script src="bootstrap/js/bootstrap.min.js" type="text/javascript" charset="utf-8"></script>
+		<script>
+			$(function() {
+				//页面加载时进行反转的激活
+				dwr.engine.setActiveReverseAjax(true);
+
+				//点击建立连接按钮，加载发送消息目标
+				$("#connectBtn").click(function() {
+					$("#chatroomBox").css("display", "block");
+					sendMessage(3);
+				});
+
+				//点击群聊按钮
+				$("#topicBtn").click(function() {
+					sendMessage(1);
+				});
+
+				//点击私聊按钮
+				$("#queueBtn").click(function() {
+					$target = $("#target").val().trim();
+					sendMessage(2, $target);
+				});
+			})
+
+			//发送消息方法
+			function sendMessage(type, target) {
+				var request = {
+					type: type,
+					message: $('#message').val().trim(),
+					target: target
+				};
+				DWRController.chat(JSON.stringify(request));
+				$('#message').val("");
+			}
+
+			//后台回调方法，加载发送消息目标
+			function addTarget(data) {
+				var message = JSON.parse(data).message;
+				//清空
+				$("#target").html("");
+				//加载
+				for(var i = 0; i < message.length; i++) {
+					$("#target").append($('<option>' + message[i] + '</option>'));
+				}
+			}
+
+			//后台回调
+			function chat(data) {
+				var message = JSON.parse(data).message;
+				$("#messages").val($("#messages").val() + "\n" + message);
+			}
+		</script>
+	</body>
+
+</html>

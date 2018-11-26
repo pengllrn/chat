@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="UTF-8" />
+		<title>stomp</title>
+		<link rel="stylesheet" type="text/css" href="bootstrap/css/bootstrap.min.css" />
+	</head>
+
+	<body>
+		<div class="container">
+			<div id="chatroomBox" style="display: none;">
+				<div id="sendBox">
+					<div class="form-group">
+						<label for="message">请输入消息</label>
+						<textarea class="form-control" rows="3" id="message"></textarea>
+					</div>
+					<div class="form-group">
+						<label for="target">请选择发送目标</label>
+						<select class="form-control" id="target"></select>
+						<br />
+						<button class="btn btn-primary" id="queueBtn">私聊</button>
+						<button class="btn btn-info" id="topicBtn">群聊</button>
+					</div>
+					<div class="form-group">
+						<label for="messages">消息记录</label>
+						<textarea class="form-control" rows="10" id="messages" readonly="readonly"></textarea>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script src="js/jquery-2.1.0.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/sockjs.min.js" type="text/javascript" charset="utf-8"></script>
+		<script src="js/stomp.min.js" type="text/javascript" charset="utf-8"></script>
+		<script src="bootstrap/js/bootstrap.min.js" type="text/javascript" charset="utf-8"></script>
+
+		<script>
+			$(function() {
+				//建立连接的地址，对应WebSocketConfig类中的配置，如果指定了server.servlet.context-path，需要加上该前缀
+				var SOCKJS_URI = "/chat/endpoint";
+				//服务器接收浏览器消息的地址，对应@MessageMapping注解
+				var PUSH_ALL_RECEIVE_URL = "/topic/pushAll/receive";
+				//浏览器订阅服务器群发消息的地址，对应@SendTo注解
+				var PUSH_ALL_URL = "/topic/pushAll";
+				//服务器接收浏览器消息的地址，对应@MessageMapping注解
+				var PUSH_MYSELF_RECEIVE_URL = "/queue/pushMyself/receive";
+				//浏览器订阅服务器私发自己消息的地址，对应@SendToUser注解
+				var PUSH_MYSELF_URL = "/user/queue/pushMyself";
+				//服务器接收浏览器消息的地址，对应@MessageMapping注解
+				var PUSH_SOMEONE_RECEIVE_URL = "/queue/pushSomeone/receive";
+				//浏览器订阅服务器私发某人消息的地址，对应convertAndSendToUser()方法第二个参数
+				var PUSH_SOMEONE_URL = "/user/queue/pushSomeone";
+
+				//连接SockJS
+				var socket = new SockJS(SOCKJS_URI);
+				//使用STOMP子协议的WebSocket客户端
+				var stompClient = Stomp.over(socket);
+				//连接WebSocket客户端
+				stompClient.connect({}, function(frame) {
+					//订阅服务器群发消息
+					stompClient.subscribe(PUSH_ALL_URL, function(data) {
+						var response = JSON.parse(data.body);
+						var message = response.message;
+						if (response.type == 4) {
+							$("#target").html("");
+							for (var i = 0; i < message.length; i++) {
+								$("#target").append($('<option>' + message[i] + '</option>'));
+							}
+						} else {
+							$("#messages").val($("#messages").val() + "\n" + message);
+						}
+					});
+					//订阅服务器私发自己消息
+					stompClient.subscribe(PUSH_MYSELF_URL, function(data) {
+						var response = JSON.parse(data.body);
+						var message = response.message;
+						$("#messages").val($("#messages").val() + "\n" + message);
+					});
+					//订阅服务器私发某人消息
+					stompClient.subscribe(PUSH_SOMEONE_URL, function(data) {
+						var response = JSON.parse(data.body);
+						var message = response.message;
+						$("#messages").val($("#messages").val() + "\n" + message);
+					});
+					
+					//显示聊天室
+					$("#chatroomBox").css("display", "block");
+					//断开连接按钮可用
+					$("#disconnectBtn").attr("disabled", false);
+					
+					//更新在线用户
+					sendMessage("/topic/pushUsers", 5);
+				});
+
+				//点击群发按钮
+				$("#topicBtn").click(function() {
+					sendMessage(PUSH_ALL_RECEIVE_URL, 1);
+				});
+
+				//点击点对点发按钮
+				$("#queueBtn").click(function() {
+					sendMessage(PUSH_SOMEONE_RECEIVE_URL, 2, $("#target").val());
+				});
+					
+				//发送消息方法
+				function sendMessage(url, type, target) {
+					var request = {
+						type: type,
+						target: target,
+						message: $("#message").val().trim()
+					};
+					stompClient.send(url, {}, JSON.stringify(request));
+					$('#message').val("");
+				}
+				
+				//监听窗口关闭
+				window.onbeforeunload = function() {
+					//更新在线用户
+					sendMessage("/topic/pushUsers", 6);
+					//客户端断开连接
+					stompClient.disconnect();
+					socket.close();
+				};
+			});
+		</script>
+	</body>
+
+</html>
